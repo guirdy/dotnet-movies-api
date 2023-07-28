@@ -1,5 +1,8 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using movies_api.Data;
 using movies_api.Data.Dtos;
 using movies_api.Models;
@@ -53,5 +56,63 @@ public class MovieController : ControllerBase
 
         return CreatedAtAction(
             nameof(GetMovieById), new { movie.Id }, movie);
+    }
+
+    [HttpPut("{id}")]
+    public IActionResult UpdateMovie(
+        [FromRoute] string id,
+        [FromBody] UpdateMovieDto movieDto)
+    {
+        if (!Guid.TryParse(id, out var parseId))
+        {
+            return BadRequest("Invalid ID");
+        }
+
+        Movie? movie = _context.Movies
+            .FirstOrDefault(movie => movie.Id == parseId);
+
+        if (movie == null )
+        {
+            return BadRequest();
+        }
+
+        // Mapping movieDto to movie
+        _mapper.Map(movieDto, movie);
+        _context.SaveChanges();
+
+        return NoContent();
+    }
+
+    [HttpPatch("{id}")]
+    public IActionResult PartialUpdateMovie(
+        [FromRoute] string id,
+        [FromBody] JsonPatchDocument<UpdateMovieDto> patch)
+    {
+        if (!Guid.TryParse(id, out var parseId))
+        {
+            return BadRequest("Invalid ID");
+        }
+
+        Movie? movie = _context.Movies
+            .FirstOrDefault(movie => movie.Id == parseId);
+
+        if (movie == null)
+        {
+            return BadRequest();
+        }
+
+        var movieToUpdate = _mapper.Map<UpdateMovieDto>(movie);
+
+        patch.ApplyTo(movieToUpdate, ModelState);
+
+        if(!TryValidateModel(movieToUpdate))
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        _mapper.Map(movieToUpdate, movie);
+        _context.SaveChanges();
+
+        return NoContent();
     }
 }
